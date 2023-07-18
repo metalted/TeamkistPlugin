@@ -37,6 +37,7 @@ namespace TeamkistPlugin
         {
             //Run the network manager, to read messages etc.
             TKNetworkManager.Update();
+            TKPlayerManager.Update();
         }
 
         //If we are in the level editor in teamkist mode, central will be assigned.
@@ -89,6 +90,9 @@ namespace TeamkistPlugin
 
             //As we are no longer connected to the server, clear storage.
             TKStorage.ClearStorage();
+
+            //We need the player manager to grab the objects.
+            TKPlayerManager.FindAndProcessPlayerModels();
         }
 
         //Called when entering the level editor. (Only called when in teamkist editor mode

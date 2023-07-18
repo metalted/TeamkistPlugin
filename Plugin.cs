@@ -16,7 +16,7 @@ namespace TeamkistPlugin
     {
         public const string pluginGuid = "com.metalted.zeepkist.teamkistclient";
         public const string pluginName = "Teamkist Client";
-        public const string pluginVersion = "1.0";
+        public const string pluginVersion = "1.1";
 
         public static TeamkistPlugin Instance;
 
