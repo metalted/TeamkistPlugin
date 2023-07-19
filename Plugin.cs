@@ -16,7 +16,7 @@ namespace TeamkistPlugin
     {
         public const string pluginGuid = "com.metalted.zeepkist.teamkistclient";
         public const string pluginName = "Teamkist Client";
-        public const string pluginVersion = "1.1";
+        public const string pluginVersion = "1.2";
 
         public static TeamkistPlugin Instance;
 
@@ -35,6 +35,7 @@ namespace TeamkistPlugin
         //Run the game loop on the Teamkist Manager.
         public void Update()
         {
+            //We now run all the time but we should only run this when appropriate, which is in the main menu, level editor and test map.
             TKManager.Run();
         }
 
@@ -75,7 +76,33 @@ namespace TeamkistPlugin
                 TKManager.OnLevelEditor(__instance);
             }
         }
-    }   
+    }
+
+    //Called when we enter a game scene.
+    [HarmonyPatch(typeof(SetupGame), "Awake")]
+    public class TKGameSceneAwakePatch
+    {
+        public static void Postfix(SetupGame __instance)
+        {
+            if (TKManager.teamkistEditor)
+            {
+                TKManager.OnGameScene(__instance);
+            }
+        }
+    }
+
+    //Called when the players are spawned.
+    [HarmonyPatch(typeof(GameMaster), "SpawnPlayers")]
+    public class TKGameMasterSpawnPlayersPatch
+    {
+        public static void Postfix(GameMaster __instance)
+        {
+            if (TKManager.teamkistEditor)
+            {
+                TKPlayerManager.localRacer = __instance.PlayersReady[0].transform;
+            }
+        }
+    }
 
     //Called when a change is made on an object.
     [HarmonyPatch(typeof(LEV_UndoRedo), "SomethingChanged")]

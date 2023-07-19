@@ -12,6 +12,8 @@ namespace TeamkistPlugin
     {
         //A reference to the central script, will always be null if not a teamkist editor.
         public static LEV_LevelEditorCentral central;
+        //A reference to the game scene script, will always be null if not in a testmap in teamkist editor.
+        public static SetupGame testGame;
         //Are we currently in teamkist editor mode.
         public static bool teamkistEditor = false;
         //The name of the scene we are currently in.
@@ -35,15 +37,22 @@ namespace TeamkistPlugin
         //Called from the update function of the plugin.
         public static void Run()
         {
-            //Run the network manager, to read messages etc.
-            TKNetworkManager.Update();
-            TKPlayerManager.Update();
+            if (currentScene == "3D_MainMenu" || teamkistEditor)
+            {
+                TKNetworkManager.Update();
+                TKPlayerManager.Update();
+            }
         }
 
         //If we are in the level editor in teamkist mode, central will be assigned.
         public static bool InLevelEditor()
         {
             return central != null;
+        }
+
+        public static bool InGameScene()
+        {
+            return testGame != null;
         }
 
         //Called from the network manager after log in. When logging in the user downloads the world data from the server.
@@ -93,6 +102,7 @@ namespace TeamkistPlugin
 
             //We need the player manager to grab the objects.
             TKPlayerManager.FindAndProcessPlayerModels();
+            TKPlayerManager.ClearRemoteData();
         }
 
         //Called when entering the level editor. (Only called when in teamkist editor mode
@@ -104,6 +114,8 @@ namespace TeamkistPlugin
             TeamkistPlugin.Instance.StartCoroutine(TKLevelEditorManager.LoadFromStorage());
 
             TKUI.DisableLoadButton();
+
+            TKPlayerManager.OnLocalPlayerToEditor();
 
             if (!central.testMap.GlobalLevel.IsTestLevel)
             {
@@ -120,7 +132,15 @@ namespace TeamkistPlugin
             }
 
             central.undoRedo.historyList = central.manager.tempUndoList;
-        }        
+        }     
+        
+        //Called when the game scene starts, only when the editor in teamkist mode, so only when the testmap starts.
+        public static void OnGameScene(SetupGame instance)
+        {
+            testGame = instance;
+
+            TKPlayerManager.OnLocalPlayerToGame();
+        }
 
         //Scene change events (Always called).
         public static void OnSceneLoad(string loadedScene)

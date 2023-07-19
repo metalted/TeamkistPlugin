@@ -15,6 +15,11 @@ namespace TeamkistPlugin
     public enum TKMessageType
     {
         LogIn = 10,
+        JoinedPlayerData = 11,
+        ServerPlayerData = 12,
+        PlayerTransformData = 13,
+        PlayerStateData = 14,
+        PlayerLeft = 15,
         ServerData = 20,
         LevelEditorChangeEvents = 100,        
         BlockCreateEvent = 101,
@@ -111,7 +116,7 @@ namespace TeamkistPlugin
             PlayerManager.Instance.messenger.Log("Connected to server", 1f);
             TKManager.LogMessage("Connected to server!");
             //Log in to the server. Logging in will introduce our data to the server, the server will return the world data to us.
-            LogIn("Shpleeble", 0, 0, 0, true);
+            LogIn("Shpleeble", 1006, 1006, 1006, true);
         }
 
         //Log in with our data.
@@ -139,6 +144,64 @@ namespace TeamkistPlugin
             outgoingMessage.Write(color);
             outgoingMessage.Write(soapbox);
             outgoingMessage.Write(requestServerData);
+            client.SendMessage(outgoingMessage, NetDeliveryMethod.ReliableOrdered);
+        }
+
+        public static void SendTransformData(Vector3 position, Vector3 euler)
+        {
+            if (client == null)
+            {
+                TKManager.LogError("Can't send transform data to server because client has not been initialized yet!");
+                return;
+            }
+
+            if (!isConnectedToServer)
+            {
+                TKManager.LogWarning("Can't send transform data to server because client is not connected!");
+                return;
+            }
+
+            NetOutgoingMessage outgoingMessage = client.CreateMessage();
+            outgoingMessage.Write((byte)TKMessageType.PlayerTransformData);
+            outgoingMessage.Write(position.x);
+            outgoingMessage.Write(position.y);
+            outgoingMessage.Write(position.z);
+            outgoingMessage.Write(euler.x);
+            outgoingMessage.Write(euler.y);
+            outgoingMessage.Write(euler.z);
+            client.SendMessage(outgoingMessage, NetDeliveryMethod.UnreliableSequenced);
+        }
+
+        public static void SendPlayerStateMessage(MultiplayerCharacter.CharacterMode mode)
+        {
+            if (client == null)
+            {
+                TKManager.LogError("Can't send player state to server because client has not been initialized yet!");
+                return;
+            }
+
+            if (!isConnectedToServer)
+            {
+                TKManager.LogWarning("Can't send player state to server because client is not connected!");
+                return;
+            }
+
+            NetOutgoingMessage outgoingMessage = client.CreateMessage();
+            outgoingMessage.Write((byte)TKMessageType.PlayerStateData);
+            
+            switch (mode)
+            {
+                case MultiplayerCharacter.CharacterMode.Build:
+                case MultiplayerCharacter.CharacterMode.Paint:
+                case MultiplayerCharacter.CharacterMode.Read:
+                case MultiplayerCharacter.CharacterMode.Treegun:
+                    outgoingMessage.Write((byte)0);
+                    break;
+                case MultiplayerCharacter.CharacterMode.Race:
+                    outgoingMessage.Write((byte)1);
+                    break;
+            }
+
             client.SendMessage(outgoingMessage, NetDeliveryMethod.ReliableOrdered);
         }
 
@@ -317,6 +380,59 @@ namespace TeamkistPlugin
 
                                 //Call the data imported function which will cause the game to load the level editor.
                                 TKManager.OnServerDataImported();
+                                break;
+                            case TKMessageType.ServerPlayerData:
+                                int playerCount = incomingMessage.ReadInt32();
+                                List<TKPlayer> playerData = new List<TKPlayer>();
+                                for(int i = 0; i < playerCount; i++)
+                                {
+                                    TKPlayer player = new TKPlayer
+                                    {
+                                        ID = incomingMessage.ReadInt32(),
+                                        state = incomingMessage.ReadByte(),
+                                        name = incomingMessage.ReadString(),
+                                        hat = incomingMessage.ReadInt32(),
+                                        color = incomingMessage.ReadInt32(),
+                                        soapbox = incomingMessage.ReadInt32()
+                                    };
+
+                                    playerData.Add(player);
+                                }
+                                TKPlayerManager.ProcessServerPlayerData(playerData);
+                                break;
+                            case TKMessageType.JoinedPlayerData:
+                                TKPlayer joinedPlayer = new TKPlayer
+                                {
+                                    ID = incomingMessage.ReadInt32(),
+                                    state = incomingMessage.ReadByte(),
+                                    name = incomingMessage.ReadString(),
+                                    hat = incomingMessage.ReadInt32(),
+                                    color = incomingMessage.ReadInt32(),
+                                    soapbox = incomingMessage.ReadInt32()
+                                };
+
+                                TKPlayerManager.OnRemotePlayerJoined(joinedPlayer);
+                                break;
+                            case TKMessageType.PlayerLeft:
+                                TKPlayerManager.OnRemotePlayerLeft(incomingMessage.ReadInt32());
+                                break;
+                            case TKMessageType.PlayerTransformData:
+                                int ID = incomingMessage.ReadInt32();
+                                Vector3 playerPosition = new Vector3(incomingMessage.ReadFloat(), incomingMessage.ReadFloat(), incomingMessage.ReadFloat());
+                                Vector3 playerEuler = new Vector3(incomingMessage.ReadFloat(), incomingMessage.ReadFloat(), incomingMessage.ReadFloat());
+                                TKPlayerManager.ProcessRemotePlayerTransformData(ID, playerPosition, playerEuler);
+                                break;
+                            case TKMessageType.PlayerStateData:
+                                int stateID = incomingMessage.ReadInt32();
+                                byte state = incomingMessage.ReadByte();
+                                if(state == 1)
+                                {
+                                    TKPlayerManager.OnRemotePlayerToGame(stateID);
+                                }
+                                else
+                                {
+                                    TKPlayerManager.OnRemotePlayerToEditor(stateID);
+                                }
                                 break;
                         }
                         break;

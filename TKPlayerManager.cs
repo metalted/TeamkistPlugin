@@ -5,21 +5,97 @@ using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 using TMPro;
+using Lidgren.Network;
 
 namespace TeamkistPlugin
 {
+    public class TKPlayer
+    {
+        public int ID;
+        public string name;
+        public int hat;
+        public int color;
+        public int soapbox;
+        public byte state;
+    }
+
     public static class TKPlayerManager
     {
         public static MultiplayerCharacter playerPrefab;
+        
+        //Local
+        public static Transform localRacer;
+        public static Vector3 localPlayerPosition = Vector3.zero;
+        public static Vector3 localPlayerEuler = Vector3.zero;
+        public static Vector3 lastSendPosition = Vector3.zero;
+        public static Vector3 lastSendEuler = Vector3.zero;
+
+        public static float positionUpdateInterval = 0.25f;
+        private static float timer = 0f;
+
+        //Remote
+        public static Dictionary<int, MultiplayerCharacter> remotePlayers = new Dictionary<int, MultiplayerCharacter>();
 
         public static void Update()
         {
-            //Stuff
+            bool inLevelEditor = TKManager.InLevelEditor();
+            bool inGame = TKManager.InGameScene();
+
+            if(!inLevelEditor && !inGame)
+            {
+                return;
+            }
+
+            if (TKManager.InLevelEditor())
+            {
+                localPlayerPosition = TKManager.central.cam.cameraTransform.position;
+                localPlayerEuler = TKManager.central.cam.cameraTransform.eulerAngles;
+            }
+            else if (TKManager.InGameScene())
+            {
+                if (localRacer != null)
+                {
+                    localPlayerPosition = localRacer.position;
+                    localPlayerEuler = localRacer.eulerAngles;
+                }
+            }
+
+            // Increment the timer
+            timer += Time.deltaTime;
+
+            // Check if the interval has passed
+            if (timer >= positionUpdateInterval)
+            {
+                if(localPlayerPosition != lastSendPosition || localPlayerEuler != lastSendEuler)
+                {
+                    TKNetworkManager.SendTransformData(localPlayerPosition, localPlayerEuler);
+                    TKManager.LogMessage("Sending transform data to server!");
+                }
+
+                lastSendPosition = localPlayerPosition;
+                lastSendEuler = localPlayerEuler;
+
+                // Reset the timer
+                timer = 0f;
+            }
+        }
+
+        public static void ClearRemoteData()
+        {
+            foreach(KeyValuePair<int, MultiplayerCharacter> mc in remotePlayers)
+            {
+                if(mc.Value != null)
+                {
+                    GameObject.Destroy(mc.Value.gameObject);
+                }
+            }
+
+            remotePlayers.Clear();
         }
 
         public static void FindAndProcessPlayerModels()
         {
-            if(playerPrefab != null) { return; }
+            if (playerPrefab != null) { return; }
 
             NetworkedGhostSpawner networkedGhostSpawner = GameObject.FindObjectOfType<NetworkedGhostSpawner>();
             NetworkedZeepkistGhost networkedZeepkistGhost = networkedGhostSpawner.zeepkistGhostPrefab;
@@ -27,9 +103,9 @@ namespace TeamkistPlugin
             Transform cameraManOriginal = networkedZeepkistGhost.cameraManModel.transform;
             Transform soapboxOriginal = networkedZeepkistGhost.ghostModel.transform;
             Transform displayNameOriginal = networkedZeepkistGhost.nameDisplay.transform;
-  
+
             playerPrefab = new GameObject("Multiplayer Character").AddComponent<MultiplayerCharacter>();
-            
+
             GameObject.DontDestroyOnLoad(playerPrefab);
 
             //Create copies and assign them.
@@ -39,7 +115,7 @@ namespace TeamkistPlugin
 
             //Process the soapbox
             Ghost_AnimateWheel[] animateWheelScripts = playerPrefab.soapbox.transform.GetComponentsInChildren<Ghost_AnimateWheel>();
-            foreach(Ghost_AnimateWheel gaw in animateWheelScripts)
+            foreach (Ghost_AnimateWheel gaw in animateWheelScripts)
             {
                 GameObject.Destroy(gaw);
             }
@@ -62,7 +138,7 @@ namespace TeamkistPlugin
             playerPrefab.armatureTop = playerPrefab.cameraMan.transform.Find("Character/Armature/Top");
             Transform leftArm = playerPrefab.cameraMan.transform.Find("Character/Left Arm");
             Transform rightArm = playerPrefab.cameraMan.transform.Find("Character/Right Arm");
-            leftArm.parent = playerPrefab.armatureTop;            
+            leftArm.parent = playerPrefab.armatureTop;
             leftArm.localPosition = new Vector3(-0.25f, 0, 1.25f);
             leftArm.localEulerAngles = new Vector3(0, 240, 0);
             rightArm.parent = playerPrefab.armatureTop;
@@ -81,6 +157,120 @@ namespace TeamkistPlugin
 
             playerPrefab.gameObject.SetActive(false);
         }
+
+        public static void ProcessServerPlayerData(List<TKPlayer> playerData)
+        {
+            foreach(TKPlayer p in playerData)
+            {
+                InstantiateAndStorePlayer(p);                
+            }
+        }
+
+        public static void InstantiateAndStorePlayer(TKPlayer playerData)
+        {
+            //Add them to the dictionary.
+            if (remotePlayers.ContainsKey(playerData.ID))
+            {
+                TKManager.LogError("Can't add remote player because ID is not unique! ID: " + playerData.ID);
+                return;
+            }
+
+            //Create a new multiplayer character.
+            MultiplayerCharacter player = GameObject.Instantiate<MultiplayerCharacter>(playerPrefab);
+            //Apply the dont destroy on load flag, we will destroy them manually when leaving multiplayer.
+            GameObject.DontDestroyOnLoad(player.gameObject);
+
+            //Initialize the character.
+            player.SetupCharacter(playerData.hat, playerData.soapbox, playerData.color);
+            player.SetDisplayName(playerData.name);
+
+            switch (playerData.state)
+            {
+                case 0:
+                    player.SetMode(MultiplayerCharacter.CharacterMode.Build);
+                    break;
+                case 1:
+                    player.SetMode(MultiplayerCharacter.CharacterMode.Race);
+                    break;
+            }
+            
+            remotePlayers.Add(playerData.ID, player);
+
+            player.gameObject.SetActive(true);
+            player.active = true;
+        }
+
+        //Local changes
+        public static void OnLocalPlayerToEditor()
+        {
+            TKNetworkManager.SendPlayerStateMessage(MultiplayerCharacter.CharacterMode.Build);
+        }
+
+        public static void OnLocalPlayerToGame()
+        {
+            TKNetworkManager.SendPlayerStateMessage(MultiplayerCharacter.CharacterMode.Race);
+        }
+
+        //Calls from remote players.
+        public static void OnRemotePlayerJoined(TKPlayer player)
+        {
+            InstantiateAndStorePlayer(player);
+            TKManager.LogMessage("Player joined: " + player.name);
+        }
+
+        public static void OnRemotePlayerLeft(int ID)
+        {
+            if (remotePlayers.ContainsKey(ID))
+            {
+                GameObject.Destroy(remotePlayers[ID].gameObject);
+                remotePlayers.Remove(ID);
+                TKManager.LogMessage("Player with ID: " + ID + " left the server!");
+            }
+        }
+
+        public static void OnRemotePlayerToEditor(int ID)
+        {
+            if (remotePlayers.ContainsKey(ID))
+            {
+                remotePlayers[ID].SetMode(MultiplayerCharacter.CharacterMode.Build);
+                TKManager.LogMessage("Changed player state for player with: " + ID + " to editor!");
+            }
+        }
+
+        public static void OnRemotePlayerToGame(int ID)
+        {
+            if (remotePlayers.ContainsKey(ID))
+            {
+                remotePlayers[ID].SetMode(MultiplayerCharacter.CharacterMode.Race);
+                TKManager.LogMessage("Changed player state for player with: " + ID + " to game!");
+            }
+        }        
+
+        public static void ProcessRemotePlayerTransformData(int ID, Vector3 position, Vector3 euler)
+        {
+            if (remotePlayers.ContainsKey(ID))
+            {
+                MultiplayerCharacter mc = remotePlayers[ID];
+                switch(mc.currentMode)
+                {
+                    case MultiplayerCharacter.CharacterMode.Build:
+                        mc.AnimateToPosition(position);
+                        mc.SetBodyRotation(euler.y);
+                        mc.SetArmatureRotation(euler.x);
+                        break;
+                    case MultiplayerCharacter.CharacterMode.Race:
+                        mc.AnimateToPosition(position);
+                        mc.SetRotation(euler);
+                        break;
+                }
+
+                TKManager.LogMessage("Updated transform of player with ID: " + ID);
+            }
+            else
+            {
+                TKManager.LogError("Can't update transform of player because ID is not found. ID: " + ID);
+            }
+        }
     }
 
     public class MultiplayerCharacter : MonoBehaviour
@@ -90,9 +280,10 @@ namespace TeamkistPlugin
         public TextMeshPro displayName;
         public GameObject camera;
         public Transform armatureTop;
+        public CharacterMode currentMode;
 
         public bool active;
-        public float moveSpeed = 20f;
+        public float maxMoveDuration = 0.5f;
 
         public Vector3 targetPosition = Vector3.zero;
 
@@ -118,10 +309,12 @@ namespace TeamkistPlugin
                 case CharacterMode.Read:
                     soapbox.gameObject.SetActive(false);
                     cameraMan.gameObject.SetActive(true);
+                    currentMode = CharacterMode.Build;
                     break;
                 case CharacterMode.Race:                    
                     cameraMan.gameObject.SetActive(false);
                     soapbox.gameObject.SetActive(true);
+                    currentMode = CharacterMode.Race;
                     break;                
             }
         }        
@@ -149,16 +342,24 @@ namespace TeamkistPlugin
 
         public void SetArmatureRotation(float angle)
         {
-            armatureTop.localEulerAngles = new Vector3(0, 270, 180 + angle);
+            armatureTop.localEulerAngles = new Vector3(0, 270, 180 - angle);
         }       
-        
+
+        public void SetRotation(Vector3 euler)
+        {
+            transform.eulerAngles = euler;
+        }
+
         public void Update()
         {
             if (active)
             {
-                if(targetPosition != transform.position)
+                if (targetPosition != transform.position)
                 {
-                    transform.position = Vector3.MoveTowards(transform.position, targetPosition, moveSpeed * Time.deltaTime);
+                    float distance = Vector3.Distance(transform.position, targetPosition);
+                    float moveDuration = distance / maxMoveDuration;
+
+                    transform.position = Vector3.MoveTowards(transform.position, targetPosition, moveDuration * Time.deltaTime);
                 }
 
                 try
