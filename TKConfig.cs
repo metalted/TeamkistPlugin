@@ -69,6 +69,8 @@ namespace TeamkistPlugin
             {
                 Debug.Log(ex);
             }
+
+            TKPlayerManager.HandleConfigUpdate();
         }
 
         private static string CreateConfigLabel(int index, string label)

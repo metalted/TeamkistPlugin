@@ -1,13 +1,5 @@
 ﻿using BepInEx;
-using BepInEx.Configuration;
 using HarmonyLib;
-using UnityEngine;
-using System;
-using System.Collections.Generic;
-using Lidgren.Network;
-using System.Linq;
-using System.Globalization;
-using TMPro;
 
 namespace TeamkistPlugin
 {
@@ -16,7 +8,7 @@ namespace TeamkistPlugin
     {
         public const string pluginGuid = "com.metalted.zeepkist.teamkistclient";
         public const string pluginName = "Teamkist Client";
-        public const string pluginVersion = "1.2";
+        public const string pluginVersion = "1.2.2";
 
         public static TeamkistPlugin Instance;
 

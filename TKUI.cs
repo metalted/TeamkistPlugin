@@ -16,6 +16,7 @@ namespace TeamkistPlugin
     //Removes functionality from the load button in the level editor, as this is not allowed.
     public static class TKUI
     {
+        //This function will split the regular level editor button in to two buttons, one for regular and one for teamkist.
         public static void GenerateLevelEditorOnlineButton()
         {
             //Get the two current buttons.
@@ -26,9 +27,8 @@ namespace TeamkistPlugin
 
             //Calculate the current spacing between the two buttons.
             float buttonSpacing = Mathf.Abs(workshopButton.anchorMax.x - levelEditorButton.anchorMin.x);
-            Debug.Log("ButtonSpacing: " + buttonSpacing);
             float buttonHeight = Mathf.Abs(levelEditorButton.anchorMax.y - levelEditorButton.anchorMin.y);
-            Debug.Log("ButtonHeight: " + buttonHeight);
+
             //Create a copy of the level editor button.
             RectTransform editorOnlineButton = GameObject.Instantiate(levelEditorButton.transform, levelEditorButton.transform.parent).GetComponent<RectTransform>();
 
@@ -57,12 +57,14 @@ namespace TeamkistPlugin
             buttonText.text = "Teamkist Editor";
         }
 
+        //When the custom button is clicked.
         public static void OnEditorOnlineButton()
         {
             TKNetworkManager.ConnectToTheServer();
             PlayerManager.Instance.weLoadedLevelEditorFromMainMenu = true;
         }
 
+        //Grey out the load button in the level editor while in teamkist mode, because loading a level will mess up the server.
         public static void DisableLoadButton()
         {
             LEV_CustomButton loadButton = TKManager.central.tool.button_load;

@@ -26,6 +26,7 @@ namespace TeamkistPlugin
             TKNetworkManager.Initialize();
         }
 
+        //When unity is shut down, make sure we disconnect from the server.
         public static void OnApplicationQuit()
         {
             if(TKNetworkManager.isConnectedToServer)
@@ -44,65 +45,44 @@ namespace TeamkistPlugin
             }
         }
 
-        //If we are in the level editor in teamkist mode, central will be assigned.
-        public static bool InLevelEditor()
-        {
-            return central != null;
-        }
-
-        public static bool InGameScene()
-        {
-            return testGame != null;
-        }
-
-        //Called from the network manager after log in. When logging in the user downloads the world data from the server.
-        //After downloading is completed the world data is stored in the storage class. We are now ready to load the level editor.
-        public static void OnServerDataImported()
-        {
-            teamkistEditor = true;
-            UnityEngine.SceneManagement.SceneManager.LoadScene("LevelEditor2");
-        }
-
-        //Logging message controlled by the config file. Should default to off.
-        #region Logging
-        public static void LogMessage(string msg)
-        {
-            if (TKConfig.logMessages)
-            {
-                Debug.Log(msg);
-            }
-        }
-
-        public static void LogWarning(string msg)
-        {
-            if (TKConfig.logWarnings)
-            {
-                Debug.LogWarning(msg);
-            }
-        }
-
-        public static void LogError(string msg)
-        {
-            if (TKConfig.logErrors)
-            {
-                Debug.LogError(msg);
-            }
-        }
-        #endregion
-
-        //Scene load events (This is always called).
+        //Function is called when we actually entered the main menu.
         public static void OnMainMenu()
         {
+            //Reload any settings in the config, pretty much only useful for first starting the game but it can't hurt to do it each time the main menu loads.
             TKConfig.ForceReload();
+            //Generate the button to join the server.
             TKUI.GenerateLevelEditorOnlineButton();
+            //As we are in the main menu we are not in the server.
             teamkistEditor = false;
+
+            //Check if we are still connected, maybe an error occured. Make sure we are in the right state.
+            if (TKNetworkManager.isConnectedToServer)
+            {
+                //Oopsiepoopsie ?
+                try
+                {
+                    TKNetworkManager.client.Disconnect("");
+                }
+                catch { }
+
+                TKNetworkManager.isConnectedToServer = false;
+                TKNetworkManager.isConnecting = false;
+            }
+
 
             //As we are no longer connected to the server, clear storage.
             TKStorage.ClearStorage();
 
             //We need the player manager to grab the objects.
             TKPlayerManager.FindAndProcessPlayerModels();
-            TKPlayerManager.ClearRemoteData();
+            //And clear previous session
+            TKPlayerManager.ClearSessionData();
+        }
+
+        //If we are in the level editor in teamkist mode, central is assigned.
+        public static bool InLevelEditor()
+        {
+            return central != null;
         }
 
         //Called when entering the level editor. (Only called when in teamkist editor mode
@@ -132,50 +112,71 @@ namespace TeamkistPlugin
             }
 
             central.undoRedo.historyList = central.manager.tempUndoList;
-        }     
-        
+        }
+
+        //When in teamkist mode and in the game scene, the SetupGame will be assigned.
+        public static bool InGameScene()
+        {
+            return testGame != null;
+        }
+
         //Called when the game scene starts, only when the editor in teamkist mode, so only when the testmap starts.
         public static void OnGameScene(SetupGame instance)
         {
             testGame = instance;
 
+            //The player is going in to game mode.
             TKPlayerManager.OnLocalPlayerToGame();
+        }
+
+        //Called from the network manager after log in. When logging in the user downloads the world data from the server.
+        //After downloading is completed the world data is stored in the storage class. We are now ready to load the level editor.
+        public static void OnServerDataImported()
+        {
+            teamkistEditor = true;
+            UnityEngine.SceneManagement.SceneManager.LoadScene("LevelEditor2");
         }
 
         //Scene change events (Always called).
         public static void OnSceneLoad(string loadedScene)
         {
-            if(currentScene == "3D_MainMenu" && loadedScene == "LevelEditor2")
+            if (currentScene == "LevelEditor2" && loadedScene == "3D_MainMenu")
             {
-                //OnMenuToLevelEditor();
-            }
-            else if(currentScene == "LevelEditor2" && loadedScene == "3D_MainMenu")
-            {
-                OnLevelEditorToMenu();
-            }
-            else if(currentScene == "LevelEditor2" && loadedScene == "GameScene")
-            {
-                //OnLevelEditorToGame();
-            }
-            else if(currentScene == "GameScene" && loadedScene == "LevelEditor2")
-            {
-                //OnGameToLevelEditor();
-            }
-            else if(currentScene == "GameScene" && loadedScene == "3D_MainMenu")
-            {
-                //OnGameToMenu();
+                //We pressed quit from the level editor. Disconnect from the server if we are in teamkist mode.
+                if (teamkistEditor)
+                {
+                    TKNetworkManager.DisconnectFromServer();
+                }
             }
 
             currentScene = loadedScene;
         }
 
-        //Called when the Menu is about to be loaded while we are in the Level Editor. (Always called).
-        public static void OnLevelEditorToMenu()
+        //Logging message controlled by the config file. Should default to off.
+        #region Logging
+        public static void LogMessage(string msg)
         {
-            if(teamkistEditor)
+            if (TKConfig.logMessages)
             {
-                TKNetworkManager.DisconnectFromServer();
+                Debug.Log(msg);
             }
         }
+
+        public static void LogWarning(string msg)
+        {
+            if (TKConfig.logWarnings)
+            {
+                Debug.LogWarning(msg);
+            }
+        }
+
+        public static void LogError(string msg)
+        {
+            if (TKConfig.logErrors)
+            {
+                Debug.LogError(msg);
+            }
+        }
+        #endregion
     }
 }

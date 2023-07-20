@@ -1,13 +1,6 @@
-﻿using BepInEx;
-using BepInEx.Configuration;
-using HarmonyLib;
-using UnityEngine;
-using System;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using Lidgren.Network;
-using System.Linq;
-using System.Globalization;
-using System.Threading;
 
 namespace TeamkistPlugin
 {
@@ -29,7 +22,7 @@ namespace TeamkistPlugin
         EditorSkyboxEvent = 105
     }
 
-    //A message that can hold any kind of information.
+    //A message that can hold any kind of information, but is mostly used for level editor changes.
     public class TKMessage
     {
         public TKMessageType messageType;
@@ -115,8 +108,12 @@ namespace TeamkistPlugin
             //Log messages.
             PlayerManager.Instance.messenger.Log("Connected to server", 1f);
             TKManager.LogMessage("Connected to server!");
+
+            //Get the current player info so we can log in with their data.
+            TKPlayer localInfo = TKPlayerManager.GetLocalPlayerInformation();
+
             //Log in to the server. Logging in will introduce our data to the server, the server will return the world data to us.
-            LogIn("Shpleeble", 1006, 1006, 1006, true);
+            LogIn(localInfo.name, localInfo.hat, localInfo.color, localInfo.soapbox, true);
         }
 
         //Log in with our data.
@@ -134,7 +131,7 @@ namespace TeamkistPlugin
                 return;
             }
 
-            //Create the log in message which holds our name and data.
+            //Create the log in message.
             //Setting the final bool to true will cause the server to return the data of the world.
             //No use case for false yet.
             NetOutgoingMessage outgoingMessage = client.CreateMessage();
@@ -147,6 +144,7 @@ namespace TeamkistPlugin
             client.SendMessage(outgoingMessage, NetDeliveryMethod.ReliableOrdered);
         }
 
+        //Send the transform data, rotation and position of the local user to the server.
         public static void SendTransformData(Vector3 position, Vector3 euler)
         {
             if (client == null)
@@ -172,6 +170,7 @@ namespace TeamkistPlugin
             client.SendMessage(outgoingMessage, NetDeliveryMethod.UnreliableSequenced);
         }
 
+        //Set the player state for the local player to the server, this can be building or racing.
         public static void SendPlayerStateMessage(MultiplayerCharacter.CharacterMode mode)
         {
             if (client == null)
@@ -206,7 +205,7 @@ namespace TeamkistPlugin
         }
 
         //Is called when the user presses the quit button in the level editor.
-        //The scene transistion will cause this function to be called.
+        //The scene transition will cause this function to be called.
         public static void DisconnectFromServer()
         {
             if(client == null)
@@ -249,6 +248,7 @@ namespace TeamkistPlugin
             TKManager.teamkistEditor = false;
         }
 
+        //This function is called when the ip settings can't be resolved.
         public static void OnConnectionError()
         {
             PlayerManager.Instance.messenger.Log("Network Settings Error! Check IP and Port!", 3f);
@@ -381,6 +381,7 @@ namespace TeamkistPlugin
                                 //Call the data imported function which will cause the game to load the level editor.
                                 TKManager.OnServerDataImported();
                                 break;
+                            //All player information currently on the server, is simultaniously received together with the world data.
                             case TKMessageType.ServerPlayerData:
                                 int playerCount = incomingMessage.ReadInt32();
                                 List<TKPlayer> playerData = new List<TKPlayer>();
@@ -400,6 +401,7 @@ namespace TeamkistPlugin
                                 }
                                 TKPlayerManager.ProcessServerPlayerData(playerData);
                                 break;
+                            //When a player joins the server while we are already online, the server sends this message.
                             case TKMessageType.JoinedPlayerData:
                                 TKPlayer joinedPlayer = new TKPlayer
                                 {
@@ -410,18 +412,20 @@ namespace TeamkistPlugin
                                     color = incomingMessage.ReadInt32(),
                                     soapbox = incomingMessage.ReadInt32()
                                 };
-
                                 TKPlayerManager.OnRemotePlayerJoined(joinedPlayer);
                                 break;
+                            //When a player left the server, we get this message from the server containing the server ID of that player.
                             case TKMessageType.PlayerLeft:
                                 TKPlayerManager.OnRemotePlayerLeft(incomingMessage.ReadInt32());
                                 break;
+                            //Movement and rotation data of a remote player.
                             case TKMessageType.PlayerTransformData:
                                 int ID = incomingMessage.ReadInt32();
                                 Vector3 playerPosition = new Vector3(incomingMessage.ReadFloat(), incomingMessage.ReadFloat(), incomingMessage.ReadFloat());
                                 Vector3 playerEuler = new Vector3(incomingMessage.ReadFloat(), incomingMessage.ReadFloat(), incomingMessage.ReadFloat());
                                 TKPlayerManager.ProcessRemotePlayerTransformData(ID, playerPosition, playerEuler);
                                 break;
+                            //State data of remote player, when switching between racing and building.
                             case TKMessageType.PlayerStateData:
                                 int stateID = incomingMessage.ReadInt32();
                                 byte state = incomingMessage.ReadByte();
