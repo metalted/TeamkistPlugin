@@ -55,21 +55,6 @@ namespace TeamkistPlugin
             //As we are in the main menu we are not in the server.
             teamkistEditor = false;
 
-            //Check if we are still connected, maybe an error occured. Make sure we are in the right state.
-            if (TKNetworkManager.isConnectedToServer)
-            {
-                //Oopsiepoopsie ?
-                try
-                {
-                    TKNetworkManager.client.Disconnect("");
-                }
-                catch { }
-
-                TKNetworkManager.isConnectedToServer = false;
-                TKNetworkManager.isConnecting = false;
-            }
-
-
             //As we are no longer connected to the server, clear storage.
             TKStorage.ClearStorage();
 

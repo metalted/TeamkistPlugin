@@ -66,7 +66,9 @@ namespace TeamkistPlugin
         //Called when we press the teamkist editor button.
         public static void ConnectToTheServer()
         {
-            if(client == null)
+            TKManager.LogMessage("ConnectToTheServer()");
+
+            if (client == null)
             {
                 TKManager.LogError("Can't connect to server because client has not been initialized yet!");
                 return;
@@ -102,6 +104,8 @@ namespace TeamkistPlugin
         //Called when our status changes to CONNECTED.
         public static void OnConnectedToServer()
         {
+            TKManager.LogMessage("OnConnectedToServer()");
+
             //We are connected and not connecting anymore.
             isConnectedToServer = true;
             isConnecting = false;
@@ -145,7 +149,7 @@ namespace TeamkistPlugin
         }
 
         //Send the transform data, rotation and position of the local user to the server.
-        public static void SendTransformData(Vector3 position, Vector3 euler)
+        public static void SendTransformData(Vector3 position, Vector3 euler, MultiplayerCharacter.CharacterMode mode)
         {
             if (client == null)
             {
@@ -167,6 +171,7 @@ namespace TeamkistPlugin
             outgoingMessage.Write(euler.x);
             outgoingMessage.Write(euler.y);
             outgoingMessage.Write(euler.z);
+            outgoingMessage.Write((byte) (mode == MultiplayerCharacter.CharacterMode.Race ? 1 : 0));
             client.SendMessage(outgoingMessage, NetDeliveryMethod.UnreliableSequenced);
         }
 
@@ -208,7 +213,9 @@ namespace TeamkistPlugin
         //The scene transition will cause this function to be called.
         public static void DisconnectFromServer()
         {
-            if(client == null)
+            TKManager.LogMessage("DisconnectFromServer()");
+
+            if (client == null)
             {
                 TKManager.LogError("Can't disconnect from server because client has not been initialized yet!");
                 return;
@@ -221,12 +228,15 @@ namespace TeamkistPlugin
             }
 
             //Disconnect from the server.
+            TKManager.LogMessage("Initiating disconnect from server!");
             client.Disconnect("");
         }
 
         //Called from the network when our status changes to DISCONNECTED.
         public static void OnDisconnectedFromServer()
         {
+            TKManager.LogMessage("OnDisconnectedFromServer()");
+
             //If we were connected to the server, that means this was a disconnect.
             if(isConnectedToServer)
             {
@@ -311,6 +321,7 @@ namespace TeamkistPlugin
 
             while((incomingMessage = client.ReadMessage()) != null)
             {
+                TKManager.LogMessage("Network Message: " + incomingMessage.MessageType.ToString());
                 switch(incomingMessage.MessageType)
                 {
                     //These messages are from Lidgren and are used to determine connection status.
@@ -322,6 +333,9 @@ namespace TeamkistPlugin
                                 break;
                             case NetConnectionStatus.Disconnected:
                                 OnDisconnectedFromServer();
+                                break;
+                            default:
+                                TKManager.LogMessage("Unhandled Status Change: " + incomingMessage.SenderConnection.Status);
                                 break;
                         }
                         break;
@@ -423,7 +437,8 @@ namespace TeamkistPlugin
                                 int ID = incomingMessage.ReadInt32();
                                 Vector3 playerPosition = new Vector3(incomingMessage.ReadFloat(), incomingMessage.ReadFloat(), incomingMessage.ReadFloat());
                                 Vector3 playerEuler = new Vector3(incomingMessage.ReadFloat(), incomingMessage.ReadFloat(), incomingMessage.ReadFloat());
-                                TKPlayerManager.ProcessRemotePlayerTransformData(ID, playerPosition, playerEuler);
+                                byte playerState = incomingMessage.ReadByte();
+                                TKPlayerManager.ProcessRemotePlayerTransformData(ID, playerPosition, playerEuler, playerState);
                                 break;
                             //State data of remote player, when switching between racing and building.
                             case TKMessageType.PlayerStateData:

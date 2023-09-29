@@ -45,8 +45,8 @@ namespace TeamkistPlugin
             HatValues wardrobe_hat = (HatValues)PlayerManager.Instance.objectsList.wardrobe.GetCosmetic(ZeepkistNetworking.CosmeticItemType.hat, hat, false);
             CosmeticColor wardrobe_color = (CosmeticColor)PlayerManager.Instance.objectsList.wardrobe.GetCosmetic(ZeepkistNetworking.CosmeticItemType.skin, color, false);
 
-            soapbox.DoCarSetup(wardrobe_soapbox, wardrobe_hat, wardrobe_color, false);
-            cameraMan.DoCarSetup(null, wardrobe_hat, wardrobe_color, false);
+            soapbox.DoCarSetup(wardrobe_soapbox, wardrobe_hat, wardrobe_color, false, false, true);
+            cameraMan.DoCarSetup(null, wardrobe_hat, wardrobe_color, false, false, true);
         }
 
         public void SetMode(CharacterMode mode)
@@ -277,6 +277,7 @@ namespace TeamkistPlugin
         public static Vector3 localPlayerEuler = Vector3.zero;
         public static Vector3 lastSendPosition = Vector3.zero;
         public static Vector3 lastSendEuler = Vector3.zero;
+        public static MultiplayerCharacter.CharacterMode localCharacterMode = MultiplayerCharacter.CharacterMode.Build;
 
         //Time between transform updates.
         public static float positionUpdateInterval = 0.15f;
@@ -289,17 +290,20 @@ namespace TeamkistPlugin
 
             try
             {
-                local.name = TKManager.central.manager.steamAchiever.GetPlayerName(false);
-                local.hat = TKManager.central.manager.avontuurHat.GetCompleteID();
-                local.color = TKManager.central.manager.avontuurColor.GetCompleteID();
-                local.soapbox = TKManager.central.manager.avontuurSoapbox.GetCompleteID();
+                local.name = PlayerManager.Instance.steamAchiever.GetPlayerName(false);
+                local.hat = PlayerManager.Instance.avontuurHat.GetCompleteID();
+                local.color = PlayerManager.Instance.avontuurColor.GetCompleteID();
+                local.soapbox = PlayerManager.Instance.avontuurSoapbox.GetCompleteID();
+                TKManager.LogMessage("Found user data: " + local.name + ", H: " + local.hat + ", C: " + local.color + ", S: " + local.soapbox);
             }
-            catch
+            catch(Exception e)
             {
                 local.name = "Sphleeble";
                 local.hat = 23000;
                 local.color = 1000;
                 local.soapbox = 1000;
+                TKManager.LogMessage("Couldn't find user data!");
+                TKManager.LogMessage(e.Message);
             }
 
             return local;
@@ -337,7 +341,7 @@ namespace TeamkistPlugin
             {
                 if (localPlayerPosition != lastSendPosition || localPlayerEuler != lastSendEuler)
                 {
-                    TKNetworkManager.SendTransformData(localPlayerPosition, localPlayerEuler);
+                    TKNetworkManager.SendTransformData(localPlayerPosition, localPlayerEuler, localCharacterMode);
                     TKManager.LogMessage("Sending transform data to server!");
                 }
 
@@ -352,12 +356,14 @@ namespace TeamkistPlugin
         //The local player has gone to the editor.
         public static void OnLocalPlayerToEditor()
         {
+            localCharacterMode = MultiplayerCharacter.CharacterMode.Build;
             TKNetworkManager.SendPlayerStateMessage(MultiplayerCharacter.CharacterMode.Build);
         }
 
         //The local player has gone to the game scene.
         public static void OnLocalPlayerToGame()
         {
+            localCharacterMode = MultiplayerCharacter.CharacterMode.Race;
             TKNetworkManager.SendPlayerStateMessage(MultiplayerCharacter.CharacterMode.Race);
         }
         #endregion
@@ -451,11 +457,20 @@ namespace TeamkistPlugin
         }
 
         //Called from the network manager with transform data about a certain player.
-        public static void ProcessRemotePlayerTransformData(int ID, Vector3 position, Vector3 euler)
+        public static void ProcessRemotePlayerTransformData(int ID, Vector3 position, Vector3 euler, byte state)
         {
             if (remotePlayers.ContainsKey(ID))
             {
                 remotePlayers[ID].UpdateTransform(position, euler);
+                
+                if(state == 1)
+                {
+                    remotePlayers[ID].SetMode(MultiplayerCharacter.CharacterMode.Race);
+                }
+                else
+                {
+                    remotePlayers[ID].SetMode(MultiplayerCharacter.CharacterMode.Build);
+                }
 
                 TKManager.LogMessage("Updated transform of player with ID: " + ID);
             }
