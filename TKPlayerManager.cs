@@ -35,6 +35,7 @@ namespace TeamkistPlugin
         public SetupModelCar soapbox;
         public SetupModelCar cameraMan;
         public TextMeshPro displayName;
+        public GameObject hornModel;
         public GameObject camera;
         public Transform armatureTop;
         public CharacterMode currentMode;
@@ -230,6 +231,8 @@ namespace TeamkistPlugin
             playerPrefab.soapbox = GameObject.Instantiate(soapboxOriginal, playerPrefab.transform).GetComponent<SetupModelCar>();
             playerPrefab.cameraMan = GameObject.Instantiate(cameraManOriginal, playerPrefab.transform).GetComponent<SetupModelCar>();
             playerPrefab.displayName = GameObject.Instantiate(displayNameOriginal, playerPrefab.transform).GetComponent<TextMeshPro>();
+            playerPrefab.hornModel = playerPrefab.soapbox.transform.Find("Visible Horn").gameObject;
+            playerPrefab.hornModel.SetActive(false);
 
             //Process the soapbox
             Ghost_AnimateWheel[] animateWheelScripts = playerPrefab.soapbox.transform.GetComponentsInChildren<Ghost_AnimateWheel>();

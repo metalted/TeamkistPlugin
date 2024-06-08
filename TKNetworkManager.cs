@@ -19,7 +19,8 @@ namespace TeamkistPlugin
         BlockDestroyEvent = 102,
         BlockChangeEvent = 103,
         EditorFloorEvent = 104,
-        EditorSkyboxEvent = 105
+        EditorSkyboxEvent = 105,
+        CustomMessage = 200
     }
 
     //A message that can hold any kind of information, but is mostly used for level editor changes.
@@ -44,6 +45,10 @@ namespace TeamkistPlugin
         //The netconfiguration and client.
         public static NetPeerConfiguration netPeerConfiguration;
         public static NetClient client = null;
+
+        //Custom message event
+        public delegate void CustomEventDelegate(string data);
+        public static event CustomEventDelegate customTeamkistEvent;
 
         //Initializing the network means creating and starting the client.
         public static void Initialize()
@@ -482,6 +487,14 @@ namespace TeamkistPlugin
                                 {
                                     TKPlayerManager.OnRemotePlayerToEditor(stateID);
                                 }
+                                break;
+                            case TKMessageType.CustomMessage:
+                                try
+                                {
+                                    string messagePayload = incomingMessage.ReadString();
+                                    customTeamkistEvent?.Invoke(messagePayload);
+                                }
+                                catch { }                                
                                 break;
                         }
                         break;
