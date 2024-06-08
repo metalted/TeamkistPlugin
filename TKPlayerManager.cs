@@ -13,10 +13,21 @@ namespace TeamkistPlugin
     {
         public int ID;
         public string name;
-        public int hat;
-        public int color;
-        public int soapbox;
         public byte state;
+
+        public int zeepkist;
+        public int frontWheels;
+        public int rearWheels;
+        public int paraglider;
+        public int horn;
+        public int hat;
+        public int glasses;
+        public int color_body;
+        public int color_leftArm;
+        public int color_rightArm;
+        public int color_leftLeg;
+        public int color_rightLeg;
+        public int color;
     }
 
     public class MultiplayerCharacter : MonoBehaviour
@@ -39,14 +50,10 @@ namespace TeamkistPlugin
 
         public enum CharacterMode { Build, Paint, Treegun, Read, Race };
 
-        public void SetupCharacter(int hat, int zeepkist, int color)
+        public void SetupCharacter(CosmeticsV16 cosmetics)
         {
-            Object_Soapbox wardrobe_soapbox = (Object_Soapbox)PlayerManager.Instance.objectsList.wardrobe.GetCosmetic(ZeepkistNetworking.CosmeticItemType.zeepkist, zeepkist, false);
-            HatValues wardrobe_hat = (HatValues)PlayerManager.Instance.objectsList.wardrobe.GetCosmetic(ZeepkistNetworking.CosmeticItemType.hat, hat, false);
-            CosmeticColor wardrobe_color = (CosmeticColor)PlayerManager.Instance.objectsList.wardrobe.GetCosmetic(ZeepkistNetworking.CosmeticItemType.skin, color, false);
-
-            soapbox.DoCarSetup(wardrobe_soapbox, wardrobe_hat, wardrobe_color, false, false, true);
-            cameraMan.DoCarSetup(null, wardrobe_hat, wardrobe_color, false, false, true);
+            soapbox.DoCarSetup(cosmetics, false, false, true);
+            cameraMan.DoCarSetup(cosmetics, false, false, true);
         }
 
         public void SetMode(CharacterMode mode)
@@ -284,30 +291,62 @@ namespace TeamkistPlugin
         private static float timer = 0f;
 
         //Get the data for the current user (hats, soapbox, color and name).
-        public static TKPlayer GetLocalPlayerInformation()
-        {
-            TKPlayer local = new TKPlayer { ID = -1, state = 255 };
+         public static TKPlayer GetLocalPlayerInformation()
+         {
+             TKPlayer local = new TKPlayer { ID = -1, state = 255 };
 
-            try
-            {
-                local.name = PlayerManager.Instance.steamAchiever.GetPlayerName(false);
-                local.hat = PlayerManager.Instance.avontuurHat.GetCompleteID();
-                local.color = PlayerManager.Instance.avontuurColor.GetCompleteID();
-                local.soapbox = PlayerManager.Instance.avontuurSoapbox.GetCompleteID();
-                TKManager.LogMessage("Found user data: " + local.name + ", H: " + local.hat + ", C: " + local.color + ", S: " + local.soapbox);
-            }
-            catch(Exception e)
-            {
-                local.name = "Sphleeble";
-                local.hat = 23000;
-                local.color = 1000;
-                local.soapbox = 1000;
-                TKManager.LogMessage("Couldn't find user data!");
-                TKManager.LogMessage(e.Message);
-            }
+             Debug.Log("Getting local player info");
+             try
+             {
+                 ZeepkistNetworking.CosmeticIDs cosmeticIDs = ProgressionManager.Instance.GetAdventureCosmetics();
 
-            return local;
-        }
+
+                 local.name = PlayerManager.Instance.steamAchiever.GetPlayerName(false);
+
+                 local.zeepkist = cosmeticIDs.zeepkist;
+                 local.frontWheels = cosmeticIDs.frontWheels;
+                 local.rearWheels = cosmeticIDs.rearWheels;
+                 local.paraglider = cosmeticIDs.paraglider;
+                 local.horn = cosmeticIDs.horn;
+                 local.hat = cosmeticIDs.hat;
+                 local.glasses = cosmeticIDs.glasses;
+                 local.color_body = cosmeticIDs.color_body;
+                 local.color_leftArm = cosmeticIDs.color_leftArm;
+                 local.color_rightArm = cosmeticIDs.color_rightArm;
+                 local.color_leftLeg = cosmeticIDs.color_leftLeg;
+                 local.color_rightLeg = cosmeticIDs.color_rightLeg;
+                 local.color = cosmeticIDs.color;
+
+                 TKManager.LogMessage("Found user data for local player: " + local.name);
+             }
+             catch(Exception e)
+             {
+                 local.name = "Sphleeble";
+                 local.hat = 23000;
+                 local.color = 1000;
+                 local.zeepkist = 1000;
+
+                 local.zeepkist = 1000;
+                 local.frontWheels = 1000;
+                 local.rearWheels = 1000;
+                 local.paraglider = 1000;
+                 local.horn = 1000;
+                 local.hat = 23000;
+                 local.glasses = 1000;
+                 local.color_body = 1000;
+                 local.color_leftArm = 1000;
+                 local.color_rightArm = 1000;
+                 local.color_leftLeg = 1000;
+                 local.color_rightLeg = 1000;
+                 local.color = 1000;
+
+                 TKManager.LogMessage("Couldn't find user data!");
+                 TKManager.LogMessage(e.Message);
+             }
+
+             return local;
+         }      
+
 
         public static void Update()
         {
@@ -386,11 +425,29 @@ namespace TeamkistPlugin
 
             //Create a new multiplayer character.
             MultiplayerCharacter player = GameObject.Instantiate<MultiplayerCharacter>(playerPrefab);
+            
             //Apply the dont destroy on load flag, we will destroy them manually when leaving multiplayer.
             GameObject.DontDestroyOnLoad(player.gameObject);
 
+            CosmeticsV16 cosmetics = new CosmeticsV16();
+            ZeepkistNetworking.CosmeticIDs cosmeticIDs = new ZeepkistNetworking.CosmeticIDs();
+            cosmeticIDs.zeepkist = playerData.zeepkist;
+            cosmeticIDs.frontWheels = playerData.frontWheels;
+            cosmeticIDs.rearWheels = playerData.rearWheels;
+            cosmeticIDs.paraglider = playerData.paraglider;
+            cosmeticIDs.horn = playerData.horn;
+            cosmeticIDs.hat = playerData.hat;
+            cosmeticIDs.glasses = playerData.glasses;
+            cosmeticIDs.color_body = playerData.color_body;
+            cosmeticIDs.color_leftArm = playerData.color_leftArm;
+            cosmeticIDs.color_rightArm = playerData.color_rightArm;
+            cosmeticIDs.color_leftLeg = playerData.color_leftLeg;
+            cosmeticIDs.color_rightLeg = playerData.color_rightLeg;
+            cosmeticIDs.color = playerData.color;
+            cosmetics.IDsToCosmetics(cosmeticIDs);
+
             //Initialize the character.
-            player.SetupCharacter(playerData.hat, playerData.soapbox, playerData.color);
+            player.SetupCharacter(cosmetics);
             player.SetDisplayName(playerData.name);
 
             switch (playerData.state)

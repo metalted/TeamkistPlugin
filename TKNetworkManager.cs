@@ -117,11 +117,11 @@ namespace TeamkistPlugin
             TKPlayer localInfo = TKPlayerManager.GetLocalPlayerInformation();
 
             //Log in to the server. Logging in will introduce our data to the server, the server will return the world data to us.
-            LogIn(localInfo.name, localInfo.hat, localInfo.color, localInfo.soapbox, true);
+            LogIn(localInfo, true);
         }
 
         //Log in with our data.
-        public static void LogIn(string playerName, int hat, int color, int soapbox, bool requestServerData)
+        public static void LogIn(TKPlayer player, bool requestServerData)
         {
             if (client == null)
             {
@@ -140,10 +140,20 @@ namespace TeamkistPlugin
             //No use case for false yet.
             NetOutgoingMessage outgoingMessage = client.CreateMessage();
             outgoingMessage.Write((byte)TKMessageType.LogIn);
-            outgoingMessage.Write(playerName);
-            outgoingMessage.Write(hat);
-            outgoingMessage.Write(color);
-            outgoingMessage.Write(soapbox);
+            outgoingMessage.Write(player.name);
+            outgoingMessage.Write(player.zeepkist);
+            outgoingMessage.Write(player.frontWheels);
+            outgoingMessage.Write(player.rearWheels);
+            outgoingMessage.Write(player.paraglider);
+            outgoingMessage.Write(player.horn);
+            outgoingMessage.Write(player.hat);
+            outgoingMessage.Write(player.glasses);
+            outgoingMessage.Write(player.color_body);
+            outgoingMessage.Write(player.color_leftArm);
+            outgoingMessage.Write(player.color_rightArm);
+            outgoingMessage.Write(player.color_leftLeg);
+            outgoingMessage.Write(player.color_rightLeg);
+            outgoingMessage.Write(player.color);
             outgoingMessage.Write(requestServerData);
             client.SendMessage(outgoingMessage, NetDeliveryMethod.ReliableOrdered);
         }
@@ -406,9 +416,19 @@ namespace TeamkistPlugin
                                         ID = incomingMessage.ReadInt32(),
                                         state = incomingMessage.ReadByte(),
                                         name = incomingMessage.ReadString(),
+                                        zeepkist = incomingMessage.ReadInt32(),
+                                        frontWheels = incomingMessage.ReadInt32(),
+                                        rearWheels = incomingMessage.ReadInt32(),
+                                        paraglider = incomingMessage.ReadInt32(),
+                                        horn = incomingMessage.ReadInt32(),
                                         hat = incomingMessage.ReadInt32(),
-                                        color = incomingMessage.ReadInt32(),
-                                        soapbox = incomingMessage.ReadInt32()
+                                        glasses = incomingMessage.ReadInt32(),
+                                        color_body = incomingMessage.ReadInt32(),
+                                        color_leftArm = incomingMessage.ReadInt32(),
+                                        color_rightArm = incomingMessage.ReadInt32(),
+                                        color_leftLeg = incomingMessage.ReadInt32(),
+                                        color_rightLeg = incomingMessage.ReadInt32(),
+                                        color = incomingMessage.ReadInt32()
                                     };
 
                                     playerData.Add(player);
@@ -422,9 +442,19 @@ namespace TeamkistPlugin
                                     ID = incomingMessage.ReadInt32(),
                                     state = incomingMessage.ReadByte(),
                                     name = incomingMessage.ReadString(),
+                                    zeepkist = incomingMessage.ReadInt32(),
+                                    frontWheels = incomingMessage.ReadInt32(),
+                                    rearWheels = incomingMessage.ReadInt32(),
+                                    paraglider = incomingMessage.ReadInt32(),
+                                    horn = incomingMessage.ReadInt32(),
                                     hat = incomingMessage.ReadInt32(),
-                                    color = incomingMessage.ReadInt32(),
-                                    soapbox = incomingMessage.ReadInt32()
+                                    glasses = incomingMessage.ReadInt32(),
+                                    color_body = incomingMessage.ReadInt32(),
+                                    color_leftArm = incomingMessage.ReadInt32(),
+                                    color_rightArm = incomingMessage.ReadInt32(),
+                                    color_leftLeg = incomingMessage.ReadInt32(),
+                                    color_rightLeg = incomingMessage.ReadInt32(),
+                                    color = incomingMessage.ReadInt32()
                                 };
                                 TKPlayerManager.OnRemotePlayerJoined(joinedPlayer);
                                 break;
