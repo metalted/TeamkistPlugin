@@ -8,7 +8,7 @@ namespace TeamkistPlugin
     {
         public const string pluginGuid = "com.metalted.zeepkist.teamkistclient";
         public const string pluginName = "Teamkist Client";
-        public const string pluginVersion = "1.6";
+        public const string pluginVersion = "1.6.2";
 
         public static TeamkistPlugin Instance;
 
@@ -22,6 +22,8 @@ namespace TeamkistPlugin
             TKManager.OnInitialize(this);
             //Set a reference to this script to access the plugin.
             Instance = this;
+
+            TKNetworkManager.customTeamkistEvent += TKNetworkManager.HandleCustomMessages;
         }
 
         //Run the game loop on the Teamkist Manager.
@@ -153,6 +155,46 @@ namespace TeamkistPlugin
         public static bool Prefix(LEV_TestMap __instance)
         {
             return !TKManager.teamkistEditor;
+        }
+    }
+
+    //Called when a players state changes
+    [HarmonyPatch(typeof(New_ControlCar), "SetZeepkistState")]
+    public class NCCSetZeepkistState
+    {
+        public static void Prefix(ref byte newState, ref string source, ref bool playSound)
+        {
+            if (TKManager.teamkistEditor)
+            {
+                if (newState == (byte)3)
+                {
+                    TKPlayerManager.OnLocalPlayerParaglider();
+                }
+                else
+                {
+                    TKPlayerManager.OnLocalPlayerToGame();
+                }
+            }
+        }
+    }
+
+    //Honk honk
+    [HarmonyPatch(typeof(FMOD_HornsIndex), "PlayHornPlayback")]
+    public class FMODHornPlayback
+    {
+        public static void Prefix()
+        {
+            if (TKManager.teamkistEditor)
+            {
+                if (TKNetworkManager.isRemoteHorn)
+                {
+                    TKNetworkManager.isRemoteHorn = false;
+                }
+                else
+                {
+                    TKNetworkManager.SendCustomMessage("Horn");
+                }
+            }
         }
     }
 }

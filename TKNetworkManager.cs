@@ -50,6 +50,9 @@ namespace TeamkistPlugin
         public delegate void CustomEventDelegate(string data);
         public static event CustomEventDelegate customTeamkistEvent;
 
+        //Flag for remote horn
+        public static bool isRemoteHorn = false;
+
         //Initializing the network means creating and starting the client.
         public static void Initialize()
         {
@@ -186,7 +189,18 @@ namespace TeamkistPlugin
             outgoingMessage.Write(euler.x);
             outgoingMessage.Write(euler.y);
             outgoingMessage.Write(euler.z);
-            outgoingMessage.Write((byte) (mode == MultiplayerCharacter.CharacterMode.Race ? 1 : 0));
+            switch (mode)
+            {
+                case MultiplayerCharacter.CharacterMode.Paraglider:
+                    outgoingMessage.Write((byte)2);
+                    break;
+                case MultiplayerCharacter.CharacterMode.Race:
+                    outgoingMessage.Write((byte)1);
+                    break;
+                default:
+                    outgoingMessage.Write((byte)0);
+                    break;
+            }
             client.SendMessage(outgoingMessage, NetDeliveryMethod.UnreliableSequenced);
         }
 
@@ -207,7 +221,7 @@ namespace TeamkistPlugin
 
             NetOutgoingMessage outgoingMessage = client.CreateMessage();
             outgoingMessage.Write((byte)TKMessageType.PlayerStateData);
-            
+
             switch (mode)
             {
                 case MultiplayerCharacter.CharacterMode.Build:
@@ -217,7 +231,11 @@ namespace TeamkistPlugin
                     outgoingMessage.Write((byte)0);
                     break;
                 case MultiplayerCharacter.CharacterMode.Race:
+                case MultiplayerCharacter.CharacterMode.Offroad:
                     outgoingMessage.Write((byte)1);
+                    break;
+                case MultiplayerCharacter.CharacterMode.Paraglider:
+                    outgoingMessage.Write((byte)2);
                     break;
             }
 
@@ -320,6 +338,14 @@ namespace TeamkistPlugin
             }
 
             //Send the message with changes to the server.
+            client.SendMessage(outgoingMessage, NetDeliveryMethod.ReliableOrdered);
+        }
+
+        public static void SendCustomMessage(string message)
+        {
+            NetOutgoingMessage outgoingMessage = client.CreateMessage();
+            outgoingMessage.Write((byte)TKMessageType.CustomMessage);
+            outgoingMessage.Write(message);
             client.SendMessage(outgoingMessage, NetDeliveryMethod.ReliableOrdered);
         }
 
@@ -479,13 +505,17 @@ namespace TeamkistPlugin
                             case TKMessageType.PlayerStateData:
                                 int stateID = incomingMessage.ReadInt32();
                                 byte state = incomingMessage.ReadByte();
-                                if(state == 1)
+                                switch (state)
                                 {
-                                    TKPlayerManager.OnRemotePlayerToGame(stateID);
-                                }
-                                else
-                                {
-                                    TKPlayerManager.OnRemotePlayerToEditor(stateID);
+                                    case 2:
+                                        TKPlayerManager.OnRemotePlayerParaglider(stateID);
+                                        break;
+                                    case 1:
+                                        TKPlayerManager.OnRemotePlayerToGame(stateID);
+                                        break;
+                                    default:
+                                        TKPlayerManager.OnRemotePlayerToEditor(stateID);
+                                        break;
                                 }
                                 break;
                             case TKMessageType.CustomMessage:
@@ -499,6 +529,38 @@ namespace TeamkistPlugin
                         }
                         break;
                 }
+            }
+        }
+
+        public static void HandleCustomMessages(string data)
+        {
+            string[] dataParts = data.Split(";");
+            switch (dataParts[0])
+            {
+                case "Horn":
+                    if (dataParts.Length > 1)
+                    {
+                        string userID = dataParts[1];
+                        int userIDInt;
+                        if (int.TryParse(userID, out userIDInt))
+                        {
+                            if (TKPlayerManager.remotePlayers.ContainsKey(userIDInt))
+                            {
+                                //Get the horn
+                                MultiplayerCharacter mpc = TKPlayerManager.remotePlayers[userIDInt];
+                                Transform mpct = mpc.transform;
+                                int hornID = mpc.playerData.horn;
+
+                                //Play the sound
+                                isRemoteHorn = true;
+                                PlayerManager.Instance.hornsIndex.PlayHornPlayback((FMOD_HornsIndex.HornType)hornID, mpct, 2);
+                            }
+                        }
+                    }
+                    break;
+                default:
+                    TKManager.LogMessage("Custom message of type: " + dataParts[0] + " not implemented by Teamkist");
+                    break;
             }
         }
     }

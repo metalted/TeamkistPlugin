@@ -109,6 +109,8 @@ namespace TeamkistPlugin
                 GameObject.Destroy(blockProperties.gameObject);
                 TKManager.central.validation.RecalcBlocksAndDraw(false);
                 TKManager.LogMessage("Destroyed block in level editor!");
+
+                RemoteChangeOccured(UID);
             }
         }
 
@@ -134,6 +136,8 @@ namespace TeamkistPlugin
                 TKUtilities.AssignPropertyListToBlockPropertyJSON(properties, blockPropertyJSON);
                 TKManager.central.undoRedo.GenerateNewBlock(blockPropertyJSON, blockPropertyJSON.UID);
                 TKManager.LogMessage("Updated block in level editor!");
+
+                RemoteChangeOccured(UID);
             }
         }
 
@@ -166,6 +170,53 @@ namespace TeamkistPlugin
             }
 
             TKManager.central.validation.RecalcBlocksAndDraw(false);
+        }
+
+        public static void RemoteChangeOccured(string UID)
+        {
+            if (TKManager.InLevelEditor())
+            {
+                //Check if we are in the editor
+                if (TKManager.central != null)
+                {
+                    //Are we holding anything ?
+                    if (TKManager.central.selection.list.Count > 0)
+                    {
+                        //Validate the selection
+                        // List to keep track of destroyed block indexes
+                        List<int> updatedIndexes = new List<int>();
+
+                        for (int i = 0; i < TKManager.central.selection.list.Count; i++)
+                        {
+                            BlockProperties bp = TKManager.central.selection.list[i];
+
+                            if (bp == null || bp.UID == UID)
+                            {
+                                updatedIndexes.Add(i);
+                            }
+                        }
+
+                        if (updatedIndexes.Count > 0)
+                        {
+                            // Remove destroyed indexes from the list after processing
+                            for (int i = updatedIndexes.Count - 1; i >= 0; i--)
+                            {
+                                int indexToRemove = updatedIndexes[i];
+
+                                // Safely remove the item at the specified index
+                                if (indexToRemove >= 0 && indexToRemove < TKManager.central.selection.list.Count)
+                                {
+                                    TKManager.central.selection.list.RemoveAt(indexToRemove);
+                                }
+                            }
+
+                            PlayerManager.Instance.messenger.Log("Simultaneous editing not supported! Deselecting all... Test track/leave and return to resync...", 3f);
+
+                            TKManager.central.selection.DeselectAllBlocks(true, "Teamkist");
+                        }
+                    }
+                }
+            }
         }
     }
 }

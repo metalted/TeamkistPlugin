@@ -36,9 +36,11 @@ namespace TeamkistPlugin
         public SetupModelCar cameraMan;
         public TextMeshPro displayName;
         public GameObject hornModel;
+        public GameObject paragliderModel;
         public GameObject camera;
         public Transform armatureTop;
         public CharacterMode currentMode;
+        public TKPlayer playerData;
 
         public bool active;
         public float maxMoveDuration = 0.3f;
@@ -49,7 +51,7 @@ namespace TeamkistPlugin
         public Quaternion targetArmatureRotation = Quaternion.identity;
         public Quaternion targetBodyRotation = Quaternion.identity;
 
-        public enum CharacterMode { Build, Paint, Treegun, Read, Race };
+        public enum CharacterMode { Build, Paint, Treegun, Read, Race, Paraglider, Offroad };
 
         public void SetupCharacter(CosmeticsV16 cosmetics)
         {
@@ -70,9 +72,21 @@ namespace TeamkistPlugin
                     currentMode = CharacterMode.Build;
                     break;
                 case CharacterMode.Race:
+                case CharacterMode.Offroad:
                     cameraMan.gameObject.SetActive(false);
                     soapbox.gameObject.SetActive(true);
+                    paragliderModel.gameObject.SetActive(false);
                     currentMode = CharacterMode.Race;
+                    break;
+                case CharacterMode.Paraglider:
+                    cameraMan.gameObject.SetActive(false);
+                    soapbox.gameObject.SetActive(true);
+                    paragliderModel.gameObject.SetActive(true);
+                    foreach (Transform t in paragliderModel.gameObject.transform)
+                    {
+                        t.gameObject.SetActive(true);
+                    }
+                    currentMode = CharacterMode.Paraglider;
                     break;
             }
         }
@@ -156,6 +170,9 @@ namespace TeamkistPlugin
                 switch(currentMode)
                 {
                     case CharacterMode.Build:
+                    case CharacterMode.Paint:
+                    case CharacterMode.Treegun:
+                    case CharacterMode.Read:
                         //Armature Rotation
                         if (targetArmatureRotation != armatureTop.localRotation)
                         {
@@ -175,6 +192,8 @@ namespace TeamkistPlugin
                         }
                         break;
                     case CharacterMode.Race:
+                    case CharacterMode.Paraglider:
+                    case CharacterMode.Offroad:
                         //Soapbox
                         if (targetRotation != transform.rotation)
                         {
@@ -192,12 +211,17 @@ namespace TeamkistPlugin
         {
             switch (currentMode)
             {
-                case MultiplayerCharacter.CharacterMode.Build:
+                case CharacterMode.Build:
+                case CharacterMode.Paint:
+                case CharacterMode.Treegun:
+                case CharacterMode.Read:
                     AnimateToPosition(pos);
                     AnimateToBodyRotation(eul.y);
                     AnimateToArmatureRotation(eul.x);
                     break;
-                case MultiplayerCharacter.CharacterMode.Race:
+                case CharacterMode.Race:
+                case CharacterMode.Paraglider:
+                case CharacterMode.Offroad:
                     AnimateToPosition(pos);
                     AnimateToRotation(eul);
                     break;
@@ -233,6 +257,13 @@ namespace TeamkistPlugin
             playerPrefab.displayName = GameObject.Instantiate(displayNameOriginal, playerPrefab.transform).GetComponent<TextMeshPro>();
             playerPrefab.hornModel = playerPrefab.soapbox.transform.Find("Visible Horn").gameObject;
             playerPrefab.hornModel.SetActive(false);
+
+            playerPrefab.paragliderModel = playerPrefab.soapbox.transform.Find("Glider").gameObject;
+            foreach (Transform t in playerPrefab.paragliderModel.transform)
+            {
+                t.gameObject.SetActive(true);
+            }
+            playerPrefab.paragliderModel.SetActive(false);
 
             //Process the soapbox
             Ghost_AnimateWheel[] animateWheelScripts = playerPrefab.soapbox.transform.GetComponentsInChildren<Ghost_AnimateWheel>();
@@ -298,11 +329,10 @@ namespace TeamkistPlugin
          {
              TKPlayer local = new TKPlayer { ID = -1, state = 255 };
 
-             Debug.Log("Getting local player info");
+             //Debug.Log("Getting local player info");
              try
              {
                  ZeepkistNetworking.CosmeticIDs cosmeticIDs = ProgressionManager.Instance.GetAdventureCosmetics();
-
 
                  local.name = PlayerManager.Instance.steamAchiever.GetPlayerName(false);
 
@@ -408,6 +438,12 @@ namespace TeamkistPlugin
             localCharacterMode = MultiplayerCharacter.CharacterMode.Race;
             TKNetworkManager.SendPlayerStateMessage(MultiplayerCharacter.CharacterMode.Race);
         }
+
+        public static void OnLocalPlayerParaglider()
+        {
+            localCharacterMode = MultiplayerCharacter.CharacterMode.Paraglider;
+            TKNetworkManager.SendPlayerStateMessage(MultiplayerCharacter.CharacterMode.Paraglider);
+        }
         #endregion
 
         #region RemotePlayers
@@ -452,6 +488,7 @@ namespace TeamkistPlugin
             //Initialize the character.
             player.SetupCharacter(cosmetics);
             player.SetDisplayName(playerData.name);
+            player.playerData = playerData;
 
             switch (playerData.state)
             {
@@ -460,6 +497,9 @@ namespace TeamkistPlugin
                     break;
                 case 1:
                     player.SetMode(MultiplayerCharacter.CharacterMode.Race);
+                    break;
+                case 2:
+                    player.SetMode(MultiplayerCharacter.CharacterMode.Paraglider);
                     break;
             }
 
@@ -483,6 +523,8 @@ namespace TeamkistPlugin
         {
             InstantiateAndStorePlayer(player);
             TKManager.LogMessage("Player joined: " + player.name);
+
+            PlayerManager.Instance.messenger.Log(player.name + " joined the game.", 2f);
         }
 
         //Called from the network manager when a remote player left the game.
@@ -490,6 +532,8 @@ namespace TeamkistPlugin
         {
             if (remotePlayers.ContainsKey(ID))
             {
+                PlayerManager.Instance.messenger.Log(remotePlayers[ID].playerData.name + " left the game.", 2f);
+
                 GameObject.Destroy(remotePlayers[ID].gameObject);
                 remotePlayers.Remove(ID);
                 TKManager.LogMessage("Player with ID: " + ID + " left the server!");
@@ -516,14 +560,27 @@ namespace TeamkistPlugin
             }
         }
 
+        public static void OnRemotePlayerParaglider(int ID)
+        {
+            if (remotePlayers.ContainsKey(ID))
+            {
+                remotePlayers[ID].SetMode(MultiplayerCharacter.CharacterMode.Paraglider);
+                TKManager.LogMessage("Changed player state for player with: " + ID + " to paraglider!");
+            }
+        }
+
         //Called from the network manager with transform data about a certain player.
         public static void ProcessRemotePlayerTransformData(int ID, Vector3 position, Vector3 euler, byte state)
         {
             if (remotePlayers.ContainsKey(ID))
             {
                 remotePlayers[ID].UpdateTransform(position, euler);
-                
-                if(state == 1)
+
+                if (state == 2)
+                {
+                    remotePlayers[ID].SetMode(MultiplayerCharacter.CharacterMode.Paraglider);
+                }
+                else if (state == 1)
                 {
                     remotePlayers[ID].SetMode(MultiplayerCharacter.CharacterMode.Race);
                 }
